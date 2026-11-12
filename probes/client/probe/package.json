@@ -1,0 +1,21 @@
+{
+  "name": "dsh-mailbox-probe",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "client-ui 调研探针：验证 DSH Web 客户端插件的左侧导航页面/命令/设置页/徽标注册 API。",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  }
+}

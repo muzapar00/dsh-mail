@@ -1,0 +1,42 @@
+{
+  "name": "dsh-mailbox",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "DSH 邮箱插件：SMTP 发信 / IMAP 收信 / 好友白名单 / 收信通知 AI；邮件格式与风格由 AI 自行决定（Markdown/纯文本/HTML）；界面完全集成在 DSH Web GUI 内。",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "index.js",
+    "lib",
+    "locale",
+    "avatar.png",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test \"test/integration/*.test.js\" \"test/mail/*.test.js\" test/prompt.test.js",
+    "test:mail": "node --test \"test/mail/*.test.js\"",
+    "test:prompt": "node --test test/prompt.test.js",
+    "test:client": "node test/client-bundle.test.js",
+    "test:integration": "node --test \"test/integration/*.test.js\"",
+    "check": "node --check index.js && node --check lib/client.js"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  }
+}

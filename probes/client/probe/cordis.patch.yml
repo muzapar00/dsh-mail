@@ -1,0 +1,4 @@
+# client-ui 调研探针：把探针包挂到宿主 Cordis 树上。
+- insert:
+    - id: mailbox-probe
+      name: 'dsh-mailbox-probe'

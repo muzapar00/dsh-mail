@@ -1,0 +1,5 @@
+# dsh-mailprobe bundle patch — 只用于隔离测试 profile（DSH_HOME=/tmp/dsh-maildev）。
+# 通过 profile package.json 的 dsh.profile.bundles 引入，等价于一个真实插件的加载路径。
+- insert:
+    - id: mailprobe
+      name: dsh-mailprobe

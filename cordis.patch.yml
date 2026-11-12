@@ -1,0 +1,9 @@
+# dsh-mailbox bundle patch（bundle 通道安装时自动并入 profile 配置树）。
+# 默认不写任何配置：插件启动时读取 <dataDir>/config.json（首次可空，UI 引导初始化）。
+# dataDir 默认 $DSH_HOME/mailbox，需要改时在 profile 自己的 cordis.patch.yml 里覆盖：
+#   - id: mailbox
+#     config:
+#       dataDir: /path/to/mailbox-data
+- insert:
+    - id: mailbox
+      name: dsh-mailbox
