@@ -1,5 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect x="6" y="14" width="52" height="36" rx="7" fill="#fffdf9" stroke="#1f2a33" stroke-width="3"/>
-  <path d="M8 20 L32 38 L56 20" fill="none" stroke="#b06a2c" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="32" cy="34" r="7" fill="#f0e3d2" stroke="#b06a2c" stroke-width="2.5"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="ad.muzapar.cn">
+  <rect width="64" height="64" rx="14" fill="#f7f4ee"/>
+  <rect x="10" y="19" width="44" height="29" rx="4" fill="#fffdf9" stroke="#1f2a33" stroke-width="2.4"/>
+  <path d="M10 24 L32 40 L54 24" fill="none" stroke="#b06a2c" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M8 57 q8 -4 16 0 t16 0 t16 0" fill="none" stroke="#2f5f8f" stroke-width="2" opacity=".85" stroke-linecap="round"/>
 </svg>
