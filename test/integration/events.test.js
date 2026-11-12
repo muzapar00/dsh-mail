@@ -58,7 +58,19 @@ test('cap drops routine lines first and keeps warn within a bounded overflow', a
   await log.flush();
   await log.close();
   const rows = await readRows(dir);
-  assert.ok(rows.some((row) => row.level === 'warn'));
+  const cap = 400;
+  const ceiling = cap + Math.floor(cap * 0.25);
+  const warn = rows.find((row) => row.level === 'warn');
+  assert.ok(warn !== undefined, 'the important line must survive the cap');
+  // Routine lines must actually have been dropped, not merely outnumbered.
+  const keptRoutine = rows.filter((row) => row.event === 'poll').length;
+  assert.ok(keptRoutine < 10, `expected routine lines to be dropped, kept ${keptRoutine}`);
+  const recovered = rows.find((row) => row.event === 'log-recovered');
+  assert.ok(recovered !== undefined, 'the drop count must be recorded');
+  assert.ok(recovered.data.dropped >= 5);
+  // Bounded overflow: warn plus at most one short recovery/summary line.
+  const size = (await readFile(join(dir, 'logs', (await readdir(join(dir, 'logs'))).find((n) => n.endsWith('.jsonl'))))).length;
+  assert.ok(size <= ceiling + 250, `file grew past the bounded overflow: ${size}`);
 });
 
 test('repeated important lines collapse into a first line plus one summary with the count', async () => {
@@ -127,4 +139,26 @@ test('flush and close never wait longer than their timeout', async () => {
   const started = Date.now();
   await log.close(1);
   assert.ok(Date.now() - started < 2000);
+});
+
+test('a day rollover prunes expired day files without a restart', async () => {
+  const dir = await tempDir();
+  await mkdir(join(dir, 'logs'), { recursive: true });
+  await writeFile(join(dir, 'logs', 'events-20200101.jsonl'), '{"old":true}\n', 'utf8');
+  let nowMs = Date.parse('2026-11-12T10:00:00Z');
+  const log = createEventLog(dir, { now: () => nowMs });
+  log.info('ready', 'first day');
+  await log.flush();
+  nowMs = Date.parse('2026-11-13T10:00:00Z');
+  log.info('sync', 'second day');
+  await log.flush();
+  // The rollover prune is fire-and-forget; give it a bounded window.
+  let remaining = await readdir(join(dir, 'logs'));
+  for (let attempt = 0; attempt < 40 && remaining.includes('events-20200101.jsonl'); attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    remaining = await readdir(join(dir, 'logs'));
+  }
+  assert.ok(!remaining.includes('events-20200101.jsonl'), 'expired file should be pruned on the day rollover');
+  assert.ok(remaining.includes('events-20261113.jsonl'), 'the new day file should exist');
+  await log.close();
 });
