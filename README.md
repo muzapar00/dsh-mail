@@ -190,6 +190,8 @@ bash probes/host/stop-test-profile.sh
 - 文件写不了时按 level 降级到宿主日志：`[dsh-mailbox] event log degraded (not a failure): …`；
 - 宿主 logger 也来不及 flush 就被硬杀的极端情形，最后一行仍可能丢；
 - 若要一条不丢，需在数据目录留 dirty 标记、启动时对账——那是另一层复杂度，当前不做。
+- `droppedSince` 只存在内存里：跨重启的丢弃计数不随文件传递，`log-recovered` 只报重启之后那一段，不是全程数；
+- `log-recovered` 与去重汇总行不参与封顶计算：极端情况下会以「有界溢出」顶过单文件上限，这是设计取舍，不做额外裁剪。
 
 字段只限 `ts` / `level` / `event` / `detail` 与少量 `data` 键；正文、附件名与内容、授权码一律不落盘。
 `ts` 为 UTC ISO8601（`toISOString()`，总带 `Z`），跨平台排序与比对稳定；`detail` 落盘前统一脱敏——邮箱地址、绝对路径、长串 ID 分别替换为 `<email>` / `<path>` / `<id>`，`detail` 内不得出现授权码、邮箱地址或路径。
