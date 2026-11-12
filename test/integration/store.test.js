@@ -29,8 +29,10 @@ function messageBody(id, overrides = {}) {
 
 test('store initializes the data directory with files and tight modes', async () => {
   const { dir, store } = await freshStore();
-  const info = await stat(dir);
-  assert.ok((info.mode & 0o777) === 0o700);
+  if (process.platform !== 'win32') {
+    const info = await stat(dir);
+    assert.ok((info.mode & 0o777) === 0o700, 'data directory must be 0700 on POSIX');
+  }
   const index = await store.loadIndex();
   assert.deepEqual(index.messages, []);
   const friends = await store.loadFriends();
@@ -47,9 +49,11 @@ test('config and secrets round-trip in separate files with 0600 permissions', as
   assert.equal((await store.loadSecrets()).smtp.authCode, 'SECRET');
   const configText = await readFile(join(dir, 'config.json'), 'utf8');
   assert.ok(!configText.includes('SECRET'));
-  for (const file of ['config.json', 'secrets.json']) {
-    const info = await stat(join(dir, file));
-    assert.equal(info.mode & 0o777, 0o600, `${file} must be 0600`);
+  if (process.platform !== 'win32') {
+    for (const file of ['config.json', 'secrets.json']) {
+      const info = await stat(join(dir, file));
+      assert.equal(info.mode & 0o777, 0o600, `${file} must be 0600`);
+    }
   }
 });
 
