@@ -41,7 +41,7 @@ def main() -> None:
 
     # waves: full width from the text column to the right frame, so they read as finished
     def wave(y0: float, amp: float, color, width: int) -> None:
-        pts = [(x, y0 + amp * math.sin(x / 52.0)) for x in range(108, W - 108, 4)]
+        pts = [(x, y0 + amp * math.sin(x / 52.0)) for x in range(140, 1060, 4)]
         d.line(pts, fill=color, width=width)
 
     wave(562, 9, BLUE, 3)
