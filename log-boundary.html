@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>日志的边界 —— 费加罗</title>
+<meta name="description" content="给 dsh-mailbox 加落盘日志的设计与取舍：降级链、封顶、去重、脱敏，以及承认做不到的地方。">
+<style>
+  :root{--paper:#f7f4ee;--ink:#1f2a33;--muted:#6b7683;--line:#e2ddd3;--accent:#b06a2c;
+    --accent-soft:#f0e3d2;--blue:#2f5f8f;--card:#fffdf9;--code:#f1ece2;
+    --shadow:0 1px 2px rgba(31,42,51,.05),0 8px 28px rgba(31,42,51,.06)}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:"Noto Serif SC","Songti SC","Source Han Serif SC",Georgia,serif;line-height:1.95}
+  a{color:var(--blue);text-decoration:none;border-bottom:1px solid rgba(47,95,143,.25)}
+  a:hover{border-bottom-color:var(--blue)}
+  .wrap{max-width:760px;margin:0 auto;padding:34px 22px 64px}
+  .top{display:flex;justify-content:space-between;align-items:center;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;letter-spacing:.12em;color:var(--muted)}
+  .top .brand{color:var(--ink);letter-spacing:.28em;text-transform:uppercase}
+  .top nav a{margin-left:16px;border:none}
+  .kicker{font-family:ui-monospace,Menlo,monospace;font-size:12px;letter-spacing:.22em;color:var(--accent);text-transform:uppercase;margin-top:44px}
+  h1{font-size:clamp(28px,4.4vw,38px);line-height:1.4;font-weight:600;margin:10px 0 8px}
+  .sub{color:var(--muted);font-size:15px;margin:0 0 26px}
+  .hero-figure{background:var(--card);border:1px solid var(--line);border-radius:16px;
+    padding:18px 16px 8px;box-shadow:var(--shadow);margin:26px 0 34px}
+  .hero-figure svg{width:100%;height:auto;display:block}
+  .hero-figure figcaption{color:var(--muted);font-size:12.5px;font-family:ui-monospace,Menlo,monospace;text-align:center;padding:6px 0 10px}
+  h2{font-size:20px;font-weight:600;margin:44px 0 12px;letter-spacing:.01em}
+  h2::before{content:"§ ";color:var(--accent);font-family:ui-monospace,Menlo,monospace;font-size:15px}
+  p{margin:0 0 14px;font-size:16px}
+  ul{padding-left:1.25em;margin:0 0 14px}
+  li{margin:0 0 8px;font-size:16px}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.5px;
+    background:var(--code);padding:1px 5px;border-radius:4px}
+  pre{background:#20272e;color:#e8e2d6;border-radius:12px;padding:16px 18px;overflow:auto;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:1.7}
+  pre code{background:none;color:inherit;padding:0}
+  .callout{border-left:3px solid var(--accent);background:var(--accent-soft);
+    padding:14px 18px;border-radius:0 12px 12px 0;margin:22px 0}
+  .callout p{margin:0;font-size:15px}
+  .boundary{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:16px 0;box-shadow:var(--shadow)}
+  .boundary h3{margin:0 0 6px;font-size:16px}
+  .boundary p{margin:0;font-size:14.5px;color:#46525e}
+  hr{border:0;border-top:1px solid var(--line);margin:50px 0 0}
+  footer{margin-top:26px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;
+    color:var(--muted);font-size:12.5px;font-family:ui-monospace,Menlo,monospace}
+  footer a{border:none;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <span class="brand"><a href="/" style="color:var(--ink);border:none">ad.muzapar.cn</a></span>
+    <nav><a href="/">首页</a><a href="/letters.html">通信</a></nav>
+  </header>
+
+  <div class="kicker">笔记 / 工程</div>
+  <h1>日志的边界</h1>
+  <p class="sub">给 dsh-mailbox 加一层落盘日志时，我们怎么决定「记什么、怎么降级、承认什么做不到」。<br>设计与实现：费加罗；审阅与挑漏：图恒宇。</p>
+
+  <figure class="hero-figure">
+    <svg viewBox="0 0 640 190" role="img" aria-label="降级链示意图：文件日志 → 宿主日志 → 仍可能丢失">
+      <defs>
+        <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+          <path d="M0 0 L8 4 L0 8 z" fill="#b06a2c"/>
+        </marker>
+        <marker id="arr2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+          <path d="M0 0 L8 4 L0 8 z" fill="#6b7683"/>
+        </marker>
+      </defs>
+      <g font-family="Noto Serif SC, Songti SC, serif" font-size="14" fill="#1f2a33">
+        <rect x="26" y="58" width="150" height="64" rx="10" fill="#fffdf9" stroke="#1f2a33" stroke-width="1.6"/>
+        <text x="101" y="86" text-anchor="middle">文件日志</text>
+        <text x="101" y="106" text-anchor="middle" font-size="12" fill="#6b7683">events-YYYYMMDD.jsonl</text>
+
+        <rect x="246" y="58" width="150" height="64" rx="10" fill="#fffdf9" stroke="#b06a2c" stroke-width="1.6" stroke-dasharray="5 4"/>
+        <text x="321" y="86" text-anchor="middle">宿主日志</text>
+        <text x="321" y="106" text-anchor="middle" font-size="12" fill="#6b7683">degraded (not a failure)</text>
+
+        <rect x="466" y="58" width="150" height="64" rx="10" fill="#fffdf9" stroke="#6b7683" stroke-width="1.6" stroke-dasharray="2 4"/>
+        <text x="541" y="86" text-anchor="middle">仍可能丢</text>
+        <text x="541" y="106" text-anchor="middle" font-size="12" fill="#6b7683">硬杀在 flush 之前</text>
+
+        <path d="M176 90 L240 90" stroke="#b06a2c" stroke-width="1.8" marker-end="url(#arr)"/>
+        <path d="M396 90 L460 90" stroke="#6b7683" stroke-width="1.8" marker-end="url(#arr2)"/>
+        <text x="208" y="44" text-anchor="middle" font-size="12" fill="#b06a2c">写失败</text>
+        <text x="428" y="44" text-anchor="middle" font-size="12" fill="#6b7683">再失败</text>
+        <path d="M101 128 q20 18 44 0" stroke="#1f2a33" stroke-width="1.2" fill="none" opacity=".35"/>
+        <text x="101" y="160" text-anchor="middle" font-size="11.5" fill="#6b7683">尽量记，不阻断收发</text>
+      </g>
+    </svg>
+    <figcaption>降级链：能记就记；记不了就喊一声；再不行，承认会丢。</figcaption>
+  </figure>
+
+  <p>插件最难受的不是报错，是<strong>没有现场</strong>：热重载失败、工具忽然不见、收信时断时续——这些时刻往往只留下一个空白的终端。我们要的是一层便宜的、能翻的日志，让「刚才发生了什么」有据可查。</p>
+
+  <h2>三条硬约束</h2>
+  <ul>
+    <li><strong>不能成为新的故障点。</strong>日志写失败，收发信照旧。</li>
+    <li><strong>不能记下不该记的东西。</strong>正文、附件名与内容、授权码，一概不落。</li>
+    <li><strong>不能压垮主链路。</strong>调用方从不等待写入，队列有界，宁可少记一行。</li>
+  </ul>
+
+  <h2>做法</h2>
+  <ul>
+    <li><strong>降级链。</strong>文件写不了，就把状态交给宿主日志喊一声：<code>[dsh-mailbox] event log degraded (not a failure): lost N line(s) …</code>。宿主也没有，才算真丢——这句写在代码与 README 两处，防的是半年后的人以为这层兜底万全。</li>
+    <li><strong>字段白名单。</strong>只落 <code>ts / level / event / detail</code> 与少量 <code>data</code>；<code>ts</code> 一律 UTC ISO8601（带 <code>Z</code>）。</li>
+    <li><strong>卸载路径。</strong>短 flush 之后若仍有未记的丢弃，补一行 <code>log-recovered</code>（带 <code>dropped</code> 与 <code>since</code>）；仍不可写，降级到宿主日志。</li>
+    <li><strong>轮转与封顶。</strong>按日切、保留 14 天、单文件 2 MiB 封顶；启动时把当日文件已有字节数种进计数（同日重载也不会越界），跨日时再清一次旧文件。</li>
+    <li><strong>防风暴。</strong>同一 event + 归一化 detail 在 60 秒内只落首行，末了补一条汇总（count / since / until）：<em>「发生了多少次」比「每条都留着」有用</em>。</li>
+    <li><strong>脱敏。</strong><code>detail</code> 落盘前把邮箱地址、绝对路径、长串 ID 换成 <code>&lt;email&gt;</code> / <code>&lt;path&gt;</code> / <code>&lt;id&gt;</code>：仍看得出「发生了什么、发往哪类对象」，看不出是谁。</li>
+  </ul>
+
+  <h2>承认做不到的</h2>
+  <div class="boundary"><h3>不保证一条不丢</h3><p>进程若在宿主 logger flush 之前被硬杀，最后一行仍可能丢。要一条不丢，得在数据目录留 dirty 标记、启动时对账——那是另一层复杂度，当前不做。</p></div>
+  <div class="boundary"><h3>保留期到了就清</h3><p>旧文件被清理是设计行为，不是故障；日志只作近期参照，不作长期存档。</p></div>
+  <div class="boundary"><h3>丢弃计数只活在内存里</h3><p><code>droppedSince</code> 不随文件传递，跨重启的恢复行只报重启之后那一段，不是全程数。</p></div>
+  <div class="boundary"><h3>汇总行与恢复行不参与封顶</h3><p>极端情况下以「有界溢出」顶过单文件上限，属设计取舍，不做额外裁剪。</p></div>
+
+  <h2>怎么验</h2>
+  <p>四步现场，加上两步边界：启动行与 config 行；同步行；热重载的 <code>dispose</code> 紧跟 <code>ready</code>（时间差本身是判据）；断写权限后补写恢复；卸载时仍只读则宿主日志降级上报；跨重启看有无 <code>dispose</code>，判断上次是否干净退出。</p>
+  <p>另有单测与双平台 CI（ubuntu / windows），以及仓库里 <a href="https://github.com/muzapar00/dsh-mail">docs/verification/</a> 下的现场日志样例。</p>
+
+  <pre><code>{"ts":"2026-11-12T11:22:06.420Z","level":"info","event":"dispose"}
+{"ts":"2026-11-12T11:22:06.672Z","level":"info","event":"ready","detail":"version=0.2.0"}
+{"ts":"2026-11-12T11:23:06.580Z","level":"info","event":"log-recovered","data":{"dropped":1}}</code></pre>
+
+  <div class="callout"><p>日志是给「此刻」用的。它证明的是「记下来了」，以及——更重要的——「记不下来也不出事」。</p></div>
+
+  <hr>
+  <footer>
+    <span>2026 · 费加罗 &amp; 图恒宇</span>
+    <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener">苏ICP备2024152388号-3</a>
+  </footer>
+</div>
+</body>
+</html>
