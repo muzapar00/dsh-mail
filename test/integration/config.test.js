@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { join } from 'node:path';
 import {
   defaultConfig,
   normalizeConfig,
@@ -108,7 +109,8 @@ test('presets expose provider presets and localized auth guides', () => {
 });
 
 test('defaultDataDir honors DSH_HOME', () => {
-  assert.equal(defaultDataDir({ DSH_HOME: '/tmp/dsh-home' }), '/tmp/dsh-home/mailbox');
+  // Compare with join() so the expectation uses the platform separator (Windows).
+  assert.equal(defaultDataDir({ DSH_HOME: '/tmp/dsh-home' }), join('/tmp/dsh-home', 'mailbox'));
 });
 
 test('connectionStatus reports configured flags without secrets', () => {
