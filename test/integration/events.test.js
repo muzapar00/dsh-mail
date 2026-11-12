@@ -63,14 +63,17 @@ test('cap drops routine lines first and keeps warn within a bounded overflow', a
   const warn = rows.find((row) => row.level === 'warn');
   assert.ok(warn !== undefined, 'the important line must survive the cap');
   // Routine lines must actually have been dropped, not merely outnumbered.
+  // 10 lines of ~100 bytes against a 400-byte cap => at most 4 can be kept.
   const keptRoutine = rows.filter((row) => row.event === 'poll').length;
-  assert.ok(keptRoutine < 10, `expected routine lines to be dropped, kept ${keptRoutine}`);
+  assert.ok(keptRoutine <= 4, `expected routine lines to be dropped, kept ${keptRoutine}`);
   const recovered = rows.find((row) => row.event === 'log-recovered');
   assert.ok(recovered !== undefined, 'the drop count must be recorded');
-  assert.ok(recovered.data.dropped >= 5);
-  // Bounded overflow: warn plus at most one short recovery/summary line.
-  const size = (await readFile(join(dir, 'logs', (await readdir(join(dir, 'logs'))).find((n) => n.endsWith('.jsonl'))))).length;
-  assert.ok(size <= ceiling + 250, `file grew past the bounded overflow: ${size}`);
+  assert.ok(recovered.data.dropped >= 6);
+  // Bounded overflow: at most the ceiling plus the actual recovery line.
+  const dayFile = (await readdir(join(dir, 'logs'))).find((name) => name.endsWith('.jsonl'));
+  const size = (await readFile(join(dir, 'logs', dayFile))).length;
+  const recoveryLineBytes = Buffer.byteLength(`${JSON.stringify(recovered)}\n`, 'utf8');
+  assert.ok(size <= ceiling + recoveryLineBytes, `file grew past the bounded overflow: ${size} > ${ceiling + recoveryLineBytes}`);
 });
 
 test('repeated important lines collapse into a first line plus one summary with the count', async () => {
