@@ -181,6 +181,12 @@ bash probes/host/stop-test-profile.sh
 - `docs/PROMPT-ENGINEERING.md` — 提示词与防注入设计
 - `docs/research/*.md` — DSH 宿主 API、客户端插件机制、邮件协议兼容性调研
 
+## 怎么验（两种重启，判据不同）
+
+- **热重载**（触发 profile 重组）：旧实例 `dispose` 后约 **0.25 秒** 新实例 `ready`；这段时差本身可作「重载卡没卡」的判据。
+- **整机 / 服务重启**（systemd 等）：`dispose` 到 `ready` 通常 **三秒上下**，三秒不是异常，别当成热重载的 0.25 秒去读；判据是 `ready` 与 `config` 两行**是否都落、顺序对不对**，而不是秒数。
+- **断写权限与宿主日志降级**：不要在运行中的生产实例上试。另起一个 systemd 瞬态实例、`dataDir` 指临时目录，验完拆掉即可（步骤见 `docs/TEST-PROFILE.md`）。
+
 ## 落盘日志（`lib/events.js`）的已知边界
 
 `lib/events.js` 提供 best-effort 落盘日志：`<dataDir>/logs/events-YYYYMMDD.jsonl`，一行一个 JSON。

@@ -52,7 +52,29 @@ TEST_HOME=/tmp/dsh-maildev PORT=3101 bash probes/host/start-test-profile.sh
    `dsh --profile maildev --port 3101`，其余验证条目与上表一致。
 4. 结束即停该进程；不要把它设为常驻，也不要让它指向真实邮箱。
 
-## 三、注意
+## 三、两种重启，判据不同
+
+- 热重载（重组 profile）：`dispose` → `ready` 约 **0.25 秒**，时间差可作卡顿判据；
+- 整机 / 服务重启（systemd 等）：`dispose` → `ready` 通常 **三秒上下**，秒数不是判据；判据是 `ready` 与 `config` 两行是否都落、顺序是否正确。
+
+## 四、隔离实例上验失败路径（不动生产）
+
+```bash
+# 瞬态 systemd 实例，DSH_HOME 在 /tmp，端口避开 3080
+systemd-run --user --collect --unit=dsh-evtest \
+  --property=Environment=DSH_HOME=/tmp/dsh-maildev \
+  --property=WorkingDirectory=/tmp/dsh-maildev/workspace \
+  /home/你的/dsh --profile maildev --port 3101 --no-open
+
+# 1) 启动行：events-*.jsonl 里应有 ready 与 config
+# 2) 把当日日志文件 chmod 400，等一轮轮询；恢复 chmod 644，应补一行 log-recovered
+# 3) 再 chmod 400，然后 systemctl --user stop dsh-evtest —— 卸载时仍只读，
+#    journalctl --user --unit=dsh-evtest 应出现 "event log degraded (not a failure)"
+```
+
+`--collect` 让单位在退出后自动回收；`/tmp/dsh-maildev` 可留着复用，验完即拆不影响生产。
+
+## 五、注意
 
 - 测试 profile 里**不要**配置真实 SMTP/IMAP 授权码；`host` 指 `127.0.0.1:9` 即可，让同步自然失败，正好验失败路径。
 - 端口避开 3080（正在用的 GUI）；用 3101 或其它空闲端口。
