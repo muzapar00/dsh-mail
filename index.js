@@ -18,10 +18,11 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defaultDataDir } from './lib/config.js';
+import { createEventLog } from './lib/events.js';
 import { createNotifier } from './lib/notify.js';
 import { composeSystemPrompt, SECTION_NAME, SECTION_ORDER } from './lib/prompt.js';
 import { createApiHandler, createFetchHandler, API_PATH } from './lib/server.js';
@@ -283,6 +284,20 @@ export async function apply(ctx, config) {
     // Keep the fallback version.
   }
   const store = await createStore(dataDir, { onWarning: (message) => log.warn?.(`[dsh-mailbox] ${message}`) });
+  // Best-effort persistent log: lifecycle, sync, notify and tool lines only;
+  // never message bodies, attachment content or credentials.
+  const eventLog = createEventLog(dataDir);
+  /** Map one existing plugin log line onto a short event name (whitelisted fields only). */
+  const eventName = (line) => {
+    const text = String(line);
+    if (text.includes('] ready')) return 'ready';
+    if (text.includes('] dispose')) return 'dispose';
+    if (text.includes('sync')) return 'sync';
+    if (text.includes('notify')) return 'notify';
+    if (text.includes('sent to')) return 'send';
+    return 'log';
+  };
+  const eventLine = (line) => { log.info?.(line); eventLog.info(eventName(line), String(line)); };
   const host = createHostAdapter(ctx, log);
 
   /** In-memory friends document used by the system prompt function. */
@@ -351,7 +366,7 @@ export async function apply(ctx, config) {
     onFriendsChanged: async () => {
       await refreshFriends();
     },
-    log: (line) => log.info?.(line),
+    log: eventLine,
   });
   await service.init();
 
@@ -361,7 +376,7 @@ export async function apply(ctx, config) {
     getFriends: () => refreshFriends().catch(() => friendsCache),
     host,
     onDedicatedSession: (sessionId) => service.setDedicatedSession(sessionId),
-    log: (line) => log.info?.(line),
+    log: eventLine,
   });
 
   sync = createSyncService({
@@ -375,7 +390,7 @@ export async function apply(ctx, config) {
     onNewMail: (rows) => {
       notifier.enqueue(rows);
     },
-    log: (line) => log.info?.(line),
+    log: eventLine,
   });
 
   // ---------------------------------------------------------------- prompt section
@@ -510,9 +525,17 @@ export async function apply(ctx, config) {
   // Start from the stored state.
   setEnabled(service.getConfig().enabled === true);
   log.info?.(`[dsh-mailbox] ready: dataDir=${dataDir} enabled=${service.getConfig().enabled === true} api=${routeDispose === null ? 'none' : API_PATH}`);
+  eventLog.info('ready', `version=${version}`);
+  try {
+    const configStat = await stat(join(dataDir, 'config.json'));
+    eventLog.info('config', 'config.json', { source: 'config.json', mtime: configStat.mtime.toISOString() });
+  } catch {
+    eventLog.info('config', 'defaults', { source: 'defaults' });
+  }
 
   // -------------------------------------------------------------------- dispose
   return async function dispose() {
+    eventLog.info('dispose');
     stopTimers();
     try {
       notifier?.dispose();
@@ -533,5 +556,13 @@ export async function apply(ctx, config) {
       // best effort
     }
     await refreshingFriends.catch(() => {});
+    // Unload path: one bounded drain plus a last chance to record the drop streak.
+    const closed = await eventLog.close(300);
+    if (closed.dropped > 0) {
+      // Degraded reporting, not a failure: the file log is unavailable and the
+      // host logger is the fallback channel. Hard kills before the logger
+      // flushes can still lose this line; that residual case is accepted.
+      log.warn?.(`[dsh-mailbox] event log degraded (not a failure): lost ${closed.dropped} line(s) since ${closed.droppedSince || 'unknown'} (file log unavailable; host logger is the fallback)`);
+    }
   };
 }

@@ -180,3 +180,16 @@ bash probes/host/stop-test-profile.sh
 - `docs/UI-SPEC.md` — 界面设计规范
 - `docs/PROMPT-ENGINEERING.md` — 提示词与防注入设计
 - `docs/research/*.md` — DSH 宿主 API、客户端插件机制、邮件协议兼容性调研
+
+## 落盘日志（`lib/events.js`）的已知边界
+
+`lib/events.js` 提供 best-effort 落盘日志：`<dataDir>/logs/events-YYYYMMDD.jsonl`，一行一个 JSON。
+它保证的是「尽量记」，**不是「一条不丢」**：
+
+- 保留期（14 天）到了，旧日文件会被正常清理——这是设计行为，不是故障；日志只作近期参照，不作长期存档；
+- 文件写不了时按 level 降级到宿主日志：`[dsh-mailbox] event log degraded (not a failure): …`；
+- 宿主 logger 也来不及 flush 就被硬杀的极端情形，最后一行仍可能丢；
+- 若要一条不丢，需在数据目录留 dirty 标记、启动时对账——那是另一层复杂度，当前不做。
+
+字段只限 `ts` / `level` / `event` / `detail` 与少量 `data` 键；正文、附件名与内容、授权码一律不落盘。
+按日切、保留 14 天、单文件 2 MiB 封顶；warn/error 允许有限超出，并有 60 秒去重窗口（键为 event + 归一化 detail）。
