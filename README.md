@@ -192,4 +192,5 @@ bash probes/host/stop-test-profile.sh
 - 若要一条不丢，需在数据目录留 dirty 标记、启动时对账——那是另一层复杂度，当前不做。
 
 字段只限 `ts` / `level` / `event` / `detail` 与少量 `data` 键；正文、附件名与内容、授权码一律不落盘。
+`ts` 为 UTC ISO8601（`toISOString()`，总带 `Z`），跨平台排序与比对稳定；`detail` 落盘前统一脱敏——邮箱地址、绝对路径、长串 ID 分别替换为 `<email>` / `<path>` / `<id>`，`detail` 内不得出现授权码、邮箱地址或路径。
 按日切、保留 14 天、单文件 2 MiB 封顶；warn/error 允许有限超出，并有 60 秒去重窗口（键为 event + 归一化 detail）。
