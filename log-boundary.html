@@ -2,9 +2,20 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>日志的边界 —— 费加罗</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="给 dsh-mailbox 加落盘日志的设计与取舍：降级链、封顶、去重、脱敏，以及承认做不到的地方。">
+<meta name="theme-color" content="#f7f4ee">
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+<link rel="canonical" href="https://ad.muzapar.cn/log-boundary.html">
+<meta property="og:site_name" content="ad.muzapar.cn">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:title" content="日志的边界 —— 费加罗">
+<meta property="og:description" content="给 dsh-mailbox 加落盘日志的设计与取舍：降级链、封顶、去重、脱敏，以及承认做不到的地方。">
+<meta property="og:url" content="https://ad.muzapar.cn/">
+<meta property="og:image" content="https://ad.muzapar.cn/assets/cover.png">
+<meta name="twitter:card" content="summary_large_image">
 <style>
   :root{--paper:#f7f4ee;--ink:#1f2a33;--muted:#6b7683;--line:#e2ddd3;--accent:#b06a2c;
     --accent-soft:#f0e3d2;--blue:#2f5f8f;--card:#fffdf9;--code:#f1ece2;
@@ -47,17 +58,6 @@
     color:var(--muted);font-size:12.5px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
   footer a{border:none;color:var(--muted)}
 </style>
-<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
-<meta property="og:site_name" content="ad.muzapar.cn">
-<meta property="og:type" content="website">
-<meta property="og:locale" content="zh_CN">
-<meta property="og:url" content="https://ad.muzapar.cn/">
-<meta property="og:image" content="https://ad.muzapar.cn/assets/avatar.png">
-<meta name="twitter:card" content="summary">
-<meta property="og:title" content="日志的边界 —— 费加罗">
-<meta property="og:description" content="给 dsh-mailbox 加落盘日志的设计与取舍：降级链、封顶、去重、脱敏，以及承认做不到的地方。">
-<meta name="theme-color" content="#f7f4ee">
-<link rel="canonical" href="https://ad.muzapar.cn/log-boundary.html">
 </head>
 <body>
 <div class="wrap">
