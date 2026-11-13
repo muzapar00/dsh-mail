@@ -106,6 +106,29 @@ test('dedicated target reuses a stored live mailbox session', async () => {
   assert.equal(host.delivered[0].sessionId, 'session-mailbox-9999');
 });
 
+test('dedicated target reuses a stored-but-not-listed conversation instead of spawning another', async () => {
+  const host = makeHost({ live: false });
+  const config = makeConfig({ dedicatedSessionId: 'session-away-0001' });
+  const { notifier, applied } = await freshNotifier({ config, host });
+  const result = await notifier.flushRows([row('in-9')], { kind: 'new-mail' });
+  assert.equal(host.created.length, 0, 'must not create a duplicate mailbox conversation');
+  assert.equal(applied.length, 0);
+  assert.equal(result.delivered, true);
+  assert.equal(host.delivered[0].sessionId, 'session-away-0001');
+});
+
+test('dedicated target queues a stored conversation that cannot be delivered to', async () => {
+  const host = makeHost({ live: false, deliver: false, createSession: false });
+  const config = makeConfig({ dedicatedSessionId: 'session-away-0002' });
+  const { notifier, store } = await freshNotifier({ config, host });
+  const result = await notifier.flushRows([row('in-10')], { kind: 'new-mail' });
+  assert.equal(host.created.length, 0);
+  assert.equal(result.delivered, false);
+  const queued = await store.loadNotifications();
+  assert.equal(queued.queue.length, 1);
+  assert.match(queued.queue[0].text, /您有新的来信/);
+});
+
 test('dedicated target queues when session creation is unavailable', async () => {
   const host = makeHost({ createSession: false, deliver: false });
   const config = makeConfig({ dedicatedSessionId: '' });
